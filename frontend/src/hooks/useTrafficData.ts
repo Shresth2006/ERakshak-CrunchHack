@@ -194,6 +194,13 @@ function reducer(state: State, action: Action): State {
           }
         });
 
+        let waitCounts: { N: number; E: number; S: number; W: number } = j.armWaitCounts || {
+          N: 0,
+          E: 0,
+          S: 0,
+          W: 0,
+        };
+
         if (newCountdown <= 0) {
           if (j.signalStatus === "GREEN") {
             // Green ends -> 3s Yellow clearance
@@ -204,25 +211,40 @@ function reducer(state: State, action: Action): State {
             newStatus = "RED";
             newCountdown = 2;
 
-            // Select NEXT arm using Max-Pressure (highest queue among non-recently-serviced arms)
-            // Exclude the arm that just finished so it CANNOT get the next green signal immediately!
+            // Increment wait cycles for all waiting arms
+            const updatedWaitCounts = { ...waitCounts };
+            (["N", "E", "S", "W"] as const).forEach((arm) => {
+              if (arm !== activeArm) {
+                updatedWaitCounts[arm] = (updatedWaitCounts[arm] || 0) + 1;
+              }
+            });
+
+            // Exclude arm that just finished so it CANNOT get next green immediately
             const candidateArms: ("N" | "E" | "S" | "W")[] = (["N", "E", "S", "W"] as const).filter(
               (arm) => arm !== activeArm
             );
 
-            // Pick the candidate arm with the maximum queue pressure
+            // ANTI-STARVATION MAX-PRESSURE CONTROLLER:
+            // 1. Hard Anti-Starvation Cap: Any arm skipped for >= 2 cycles gets highest priority
+            // 2. Soft Aging Weight: Each waiting cycle adds +16 to pressure score
             let highestArm = candidateArms[0];
-            let maxQueue = -1;
+            let maxScore = -1;
+
             candidateArms.forEach((arm) => {
               const lane = updatedLanes.find((l, idx) => getArmKey(l.name, idx) === arm);
               const q = lane ? lane.queue : 0;
-              if (q > maxQueue) {
-                maxQueue = q;
+              const wait = updatedWaitCounts[arm] || 0;
+              // Hard cap guarantee ensures no arm ever waits more than 2 cycles
+              const score = q + (wait >= 2 ? 1000 * wait : wait * 16);
+              if (score > maxScore) {
+                maxScore = score;
                 highestArm = arm;
               }
             });
 
             activeArm = highestArm;
+            updatedWaitCounts[activeArm] = 0;
+            waitCounts = updatedWaitCounts;
           } else {
             // RED clearance ends -> Selected arm turns GREEN!
             newStatus = "GREEN";
@@ -250,6 +272,7 @@ function reducer(state: State, action: Action): State {
           signalCountdown: newCountdown,
           signalStatus: newStatus,
           activeArm,
+          armWaitCounts: waitCounts,
           current_phase: armLabels[activeArm],
           lanes: updatedLanes,
           congestionIndex: avgLaneDensity,

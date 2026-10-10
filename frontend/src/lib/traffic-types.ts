@@ -29,6 +29,7 @@ export type Junction = {
   staticCycle: { phase: string; seconds: number; color: string }[];
   whatIfDelta: number; // % congestion increase if reverted to fixed timing
   activeArm?: "N" | "E" | "S" | "W";
+  armWaitCounts?: { N: number; E: number; S: number; W: number };
   current_phase?: string;
   lanes: Lane[];
   camera: { id: string; online: boolean };
