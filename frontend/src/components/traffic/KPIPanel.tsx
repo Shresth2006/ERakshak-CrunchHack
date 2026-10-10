@@ -5,7 +5,7 @@ import {
 } from "recharts";
 import { ArrowUpRight, TrendingDown, CheckCircle2, XCircle } from "lucide-react";
 import { QUEUE_JUNCTIONS } from "@/lib/mock-traffic";
-import { useAnalytics } from "@/hooks/useAnalytics";
+import { useAnalytics, generateMockCompare } from "@/hooks/useAnalytics";
 import type { Kpi } from "@/lib/traffic-types";
 
 // Update colors to the sleek monochrome/subtle palette
@@ -34,7 +34,10 @@ export function KPIPanel({
     fetchCompare(jId);
   };
 
-  const comparePoints = compareData[selectedJunction] || [];
+  const comparePoints =
+    compareData[selectedJunction] && compareData[selectedJunction].length > 0
+      ? compareData[selectedJunction]
+      : generateMockCompare(selectedJunction);
 
   return (
     <section className="flex min-w-0 flex-col gap-4">
@@ -120,15 +123,15 @@ export function KPIPanel({
                 </linearGradient>
               </defs>
               <CartesianGrid stroke="var(--grid-line)" strokeDasharray="2 4" vertical={false} />
-              <XAxis dataKey="step" tick={{ fontSize: 9, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} />
-              <YAxis tick={{ fontSize: 9, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} width={34} />
+              <XAxis dataKey="time" tick={{ fontSize: 9, fill: "#a1a1aa" }} tickLine={false} axisLine={false} />
+              <YAxis tick={{ fontSize: 9, fill: "#a1a1aa" }} tickLine={false} axisLine={false} width={34} domain={[0, 'auto']} />
               <Tooltip 
                 contentStyle={{ background: "rgba(9, 9, 11, 0.9)", backdropFilter: "blur(8px)", border: "1px solid var(--border)", borderRadius: 12, fontSize: 11, boxShadow: "0 12px 24px rgba(0,0,0,0.5)" }} 
                 labelStyle={{ display: "none" }}
                 formatter={(v: any) => [Math.round(v) + "s"]} 
               />
-              <Area type="monotone" dataKey="fixed" name="Fixed Timing" stroke="rgba(255,255,255,0.15)" strokeWidth={1.5} fill="transparent" dot={false} isAnimationActive={true} animationDuration={600} />
-              <Area type="monotone" dataKey="adaptive" name="Adaptive (Max-Pressure)" stroke="var(--foreground)" strokeWidth={2.5} fill="url(#adapt-grad)" dot={false} isAnimationActive={true} animationDuration={600} />
+              <Area type="monotone" dataKey="fixed" name="Fixed Timing" stroke="rgba(255,255,255,0.4)" strokeWidth={1.5} strokeDasharray="4 4" fill="transparent" dot={false} isAnimationActive={false} />
+              <Area type="monotone" dataKey="adaptive" name="Adaptive (Max-Pressure)" stroke="#ffffff" strokeWidth={2.5} fill="url(#adapt-grad)" dot={false} isAnimationActive={false} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>

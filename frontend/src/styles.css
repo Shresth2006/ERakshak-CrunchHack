@@ -219,6 +219,11 @@
   bottom: 12px;
 }
 
+.hud-br {
+  right: 12px;
+  bottom: 12px;
+}
+
 .panel-hud {
   background: var(--panel);
   border: 1px solid var(--panel-border);

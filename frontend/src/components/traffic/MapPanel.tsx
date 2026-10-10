@@ -672,31 +672,6 @@ export function MapPanel({
 
       {/* ── HUD Top-Right: Controls & Corridors (Section 8.3) ── */}
       <div className="hud hud-tr">
-        {/* Theme Toggle (Section 3.4) */}
-        <div className="flex items-center rounded-xl bg-zinc-950/85 backdrop-blur-md border border-white/10 p-0.5 shadow-2xl">
-          <button
-            onClick={() => setMapTheme("tactical")}
-            className={`rounded-lg px-2.5 py-1 text-[10px] font-mono font-bold uppercase tracking-wider transition-all duration-150 active:scale-95 ${
-              mapTheme === "tactical"
-                ? "bg-white text-zinc-950 shadow-sm"
-                : "text-zinc-400 hover:text-zinc-200"
-            }`}
-            title="Tactical Dark Map (Inverted OSM)"
-          >
-            Tactical
-          </button>
-          <button
-            onClick={() => setMapTheme("grayscale")}
-            className={`rounded-lg px-2.5 py-1 text-[10px] font-mono font-bold uppercase tracking-wider transition-all duration-150 active:scale-95 ${
-              mapTheme === "grayscale"
-                ? "bg-white text-zinc-950 shadow-sm"
-                : "text-zinc-400 hover:text-zinc-200"
-            }`}
-            title="Grayscale Dark Map (Monochrome OSM)"
-          >
-            Grayscale
-          </button>
-        </div>
 
         {/* Ambulance Demo Button */}
         <button
@@ -880,6 +855,34 @@ export function MapPanel({
           </div>
         </div>
       )}
+
+      {/* ── HUD Bottom-Right: Tactical / Grayscale Theme Toggle ── */}
+      <div className="hud hud-br">
+        <div className="flex items-center rounded-xl bg-zinc-950/85 backdrop-blur-md border border-white/10 p-0.5 shadow-2xl">
+          <button
+            onClick={() => setMapTheme("tactical")}
+            className={`rounded-lg px-2.5 py-1 text-[10px] font-mono font-bold uppercase tracking-wider transition-all duration-150 active:scale-95 ${
+              mapTheme === "tactical"
+                ? "bg-white text-zinc-950 shadow-sm"
+                : "text-zinc-400 hover:text-zinc-200"
+            }`}
+            title="Tactical Dark Map (Inverted OSM)"
+          >
+            Tactical
+          </button>
+          <button
+            onClick={() => setMapTheme("grayscale")}
+            className={`rounded-lg px-2.5 py-1 text-[10px] font-mono font-bold uppercase tracking-wider transition-all duration-150 active:scale-95 ${
+              mapTheme === "grayscale"
+                ? "bg-white text-zinc-950 shadow-sm"
+                : "text-zinc-400 hover:text-zinc-200"
+            }`}
+            title="Grayscale Dark Map (Monochrome OSM)"
+          >
+            Grayscale
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
