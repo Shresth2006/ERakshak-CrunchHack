@@ -5,14 +5,16 @@ import { MapPanel } from "./MapPanel";
 import { KPIPanel } from "./KPIPanel";
 import { JunctionDrawer } from "./JunctionDrawer";
 import { AlertsFeed } from "./AlertsFeed";
+import { ExportModal } from "./ExportModal";
 import { useTrafficData } from "@/hooks/useTrafficData";
 import { getRoadDensityColor, getRoadDensityBadgeText } from "@/lib/signal-intelligence";
-import { Activity, Clock, ChevronRight, Cpu } from "lucide-react";
+import { Activity, Clock, ChevronRight, Cpu, Download } from "lucide-react";
 
 export function CommandCentre() {
   const { junctions, kpis, queue, alerts, predictions, stats, connected, getJunction } =
     useTrafficData();
   const [selected, setSelected] = useState<string | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
 
   // Synchronize KPI sidebar height to square map so space is never wasted
   const [mapHeight, setMapHeight] = useState<number | null>(null);
@@ -46,6 +48,16 @@ export function CommandCentre() {
         intrusions={stats.activeIntrusions}
         avgCongestion={stats.avgCongestion}
         connected={connected}
+        right={
+          <button
+            onClick={() => setExportOpen(true)}
+            className="num flex items-center gap-1.5 border border-sky-500/40 bg-sky-500/10 hover:bg-sky-500 hover:text-zinc-950 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-sky-300 rounded-xl transition-all shadow-lg active:scale-95 cursor-pointer"
+            title="Download Executive Traffic & Violation PDF Briefing"
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span>Export Report</span>
+          </button>
+        }
       />
 
       {/* Main layout */}
@@ -78,6 +90,9 @@ export function CommandCentre() {
 
       {/* Full Signal Telemetry, Density, Timer History & AI Learning Report Inspector */}
       <JunctionDrawer junction={getJunction(selected)} onClose={() => setSelected(null)} />
+
+      {/* Export Report Modal */}
+      <ExportModal open={exportOpen} onClose={() => setExportOpen(false)} />
     </AppShell>
   );
 }
