@@ -99,6 +99,30 @@ export function MapPanel({
     return true;
   });
 
+  const [mapTheme, setMapTheme] = useState<"tactical" | "grayscale">("tactical");
+
+  // Helper to build tile layer dynamically based on theme
+  const createTileLayer = (L: any, theme: "tactical" | "grayscale") => {
+    if (theme === "grayscale") {
+      return L.tileLayer(
+        "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+        {
+          subdomains: "abcd",
+          maxZoom: 20,
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        }
+      );
+    }
+    return L.tileLayer(
+      "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+      {
+        maxZoom: 19,
+        className: "dark-map-tiles",
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      }
+    );
+  };
+
   // Initialize Leaflet Map dynamically
   useEffect(() => {
     if (typeof window === "undefined" || !mapContainerRef.current || mapInstanceRef.current) return;
@@ -116,17 +140,9 @@ export function MapPanel({
 
       L.control.zoom({ position: "bottomright" }).addTo(map);
 
-      // High-resolution dark-styled OpenStreetMap tiles (100% public, free, NO watermarks, NO API key required)
-      const darkMapTile = L.tileLayer(
-        "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-        {
-          maxZoom: 19,
-          className: "dark-map-tiles",
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        }
-      );
-      darkMapTile.addTo(map);
-      tileRef.current = darkMapTile;
+      const tile = createTileLayer(L, mapTheme);
+      tile.addTo(map);
+      tileRef.current = tile;
       mapInstanceRef.current = map;
 
       setTimeout(() => { map.invalidateSize(); }, 100);
@@ -140,6 +156,25 @@ export function MapPanel({
       }
     };
   }, []);
+
+  // Update Tile Layer dynamically when Map Theme changes
+  useEffect(() => {
+    if (!mapInstanceRef.current || !leafletRef.current) return;
+    const L = leafletRef.current;
+    const map = mapInstanceRef.current;
+
+    if (tileRef.current) {
+      map.removeLayer(tileRef.current);
+      tileRef.current = null;
+    }
+
+    const newLayer = createTileLayer(L, mapTheme);
+    newLayer.addTo(map);
+    tileRef.current = newLayer;
+    if (newLayer.bringToBack) {
+      newLayer.bringToBack();
+    }
+  }, [mapTheme]);
 
   // Resize Observer
   useEffect(() => {
@@ -508,8 +543,34 @@ export function MapPanel({
           ))}
         </div>
 
-        {/* Right Side: Corridors & Ambulance Demo */}
+        {/* Right Side: Map Theme Toggle, Corridors & Ambulance Demo */}
         <div className="flex items-center gap-2 pointer-events-auto">
+          {/* Map Basemap Style Toggle */}
+          <div className="flex items-center rounded-xl bg-zinc-950/85 backdrop-blur-md border border-zinc-800/80 p-0.5 shadow-2xl">
+            <button
+              onClick={() => setMapTheme("tactical")}
+              className={`rounded-lg px-2.5 py-1 text-[10px] font-mono font-bold uppercase tracking-wider transition-all duration-150 active:scale-95 ${
+                mapTheme === "tactical"
+                  ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 shadow-sm"
+                  : "text-zinc-400 hover:text-zinc-200"
+              }`}
+              title="Tactical Dark Map (High-Contrast OSM)"
+            >
+              Tactical
+            </button>
+            <button
+              onClick={() => setMapTheme("grayscale")}
+              className={`rounded-lg px-2.5 py-1 text-[10px] font-mono font-bold uppercase tracking-wider transition-all duration-150 active:scale-95 ${
+                mapTheme === "grayscale"
+                  ? "bg-zinc-200 text-zinc-950 font-extrabold shadow-sm"
+                  : "text-zinc-400 hover:text-zinc-200"
+              }`}
+              title="Grayscale Dark Map (Monochrome Smooth Basemap)"
+            >
+              Grayscale
+            </button>
+          </div>
+
           {/* Ambulance Emergency Wave Button */}
           <button
             onClick={toggleAmbulanceDemo}
