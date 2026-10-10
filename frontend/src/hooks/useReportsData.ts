@@ -1,5 +1,17 @@
 import { useState, useEffect, useCallback } from "react";
 import { apiUrl } from "../config";
+import {
+  DEFAULT_SUMMARY_KPIS,
+  DEFAULT_DELAY_SERIES,
+  DEFAULT_LOS_DISTRIBUTION,
+  DEFAULT_VIOLATIONS,
+  DEFAULT_HEATMAP_ROWS,
+  DEFAULT_BOTTLENECKS,
+  DEFAULT_ADAPTIVE_BENEFIT,
+  DEFAULT_JUNCTIONS_REPORT,
+  DEFAULT_RECOMMENDATIONS,
+} from "@/lib/mock-reports-data";
+import { JUNCTIONS } from "@/lib/mock-traffic";
 
 const BASE = ""; // resolved via apiUrl() helper
 
@@ -166,24 +178,24 @@ export function useReportsData() {
     period_label: string;
     compare_label: string;
   }>({
-    kpis: [],
+    kpis: DEFAULT_SUMMARY_KPIS,
     freshness_seconds: 12,
     is_stale: false,
     period_label: "Today (10 Oct 2026)",
     compare_label: "vs yesterday (09 Oct 2026)",
   });
 
-  const [delaySeries, setDelaySeries] = useState<DelayPoint[]>([]);
-  const [losDistribution, setLosDistribution] = useState<LosBlock[]>([]);
-  const [violations, setViolations] = useState<ViolationHour[]>([]);
-  const [heatmapRows, setHeatmapRows] = useState<HeatmapRowData[]>([]);
-  const [bottlenecks, setBottlenecks] = useState<BottleneckRow[]>([]);
-  const [adaptiveBenefit, setAdaptiveBenefit] = useState<AdaptiveBenefitData | null>(null);
-  const [junctions, setJunctions] = useState<JunctionReportRow[]>([]);
-  const [recommendations, setRecommendations] = useState<RecommendationGrouped[]>([]);
+  const [delaySeries, setDelaySeries] = useState<DelayPoint[]>(DEFAULT_DELAY_SERIES);
+  const [losDistribution, setLosDistribution] = useState<LosBlock[]>(DEFAULT_LOS_DISTRIBUTION);
+  const [violations, setViolations] = useState<ViolationHour[]>(DEFAULT_VIOLATIONS);
+  const [heatmapRows, setHeatmapRows] = useState<HeatmapRowData[]>(DEFAULT_HEATMAP_ROWS);
+  const [bottlenecks, setBottlenecks] = useState<BottleneckRow[]>(DEFAULT_BOTTLENECKS);
+  const [adaptiveBenefit, setAdaptiveBenefit] = useState<AdaptiveBenefitData | null>(DEFAULT_ADAPTIVE_BENEFIT);
+  const [junctions, setJunctions] = useState<JunctionReportRow[]>(DEFAULT_JUNCTIONS_REPORT);
+  const [recommendations, setRecommendations] = useState<RecommendationGrouped[]>(DEFAULT_RECOMMENDATIONS);
   const [drawerJunction, setDrawerJunction] = useState<JunctionDetailData | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   // Secondary tab data
   const [incidents, setIncidents] = useState<any>(null);
@@ -331,10 +343,49 @@ export function useReportsData() {
         const data = await res.json();
         setDrawerJunction(data);
         setDrawerOpen(true);
+        return;
       }
     } catch (e) {
-      console.warn("Failed to load junction drawer", e);
+      console.warn("Failed to load junction drawer, using fallback", e);
     }
+
+    const found = JUNCTIONS.find((j) => j.id === junctionId) || JUNCTIONS[0]!;
+    const c = found.congestionIndex || 50;
+    setDrawerJunction({
+      id: found.id,
+      name: found.name,
+      zone: found.zone,
+      mode: "ADAPTIVE",
+      on_brts: found.onBrts,
+      health: "live",
+      camera_id: found.camera.id,
+      last_update: "10s ago",
+      summary: {
+        delay_s: Math.round(c * 0.58),
+        delay_delta_pct: -14.2,
+        p95_queue_m: Math.round(c * 1.8),
+        saturation_vc: parseFloat((0.45 + c * 0.0055).toFixed(2)),
+        cycle_failure_pct: Math.round(c * 0.08),
+        los: c < 45 ? "B" : c < 65 ? "C" : c < 80 ? "D" : "E",
+      },
+      approaches: [
+        { approach: "North Approach", flow_pcu: 480, queue_m: 35, avg_speed: 38, green_split: "42s", delay_s: 18 },
+        { approach: "South Approach", flow_pcu: 520, queue_m: 42, avg_speed: 34, green_split: "48s", delay_s: 22 },
+        { approach: "East Approach", flow_pcu: 390, queue_m: 28, avg_speed: 40, green_split: "36s", delay_s: 15 },
+        { approach: "West Approach", flow_pcu: 440, queue_m: 32, avg_speed: 36, green_split: "38s", delay_s: 17 },
+      ],
+      index_curve_24h: Array.from({ length: 12 }, (_, i) => ({
+        hour: `${String(i * 2).padStart(2, "0")}:00`,
+        today: Math.round(30 + Math.sin(i) * 25 + (c % 15)),
+        typical: Math.round(35 + Math.sin(i) * 20),
+      })),
+      events: [
+        { time: "18:42", type: "GREEN_WAVE", desc: "Coordinated green wave offset adjusted by +4s" },
+        { time: "17:15", type: "PHASE_EXTENSION", desc: "Platoon detection extended Northbound phase by 8s" },
+        { time: "14:20", type: "CYCLE_OPTIMIZATION", desc: "Background cycle length reduced to 90s for off-peak flow" },
+      ],
+    });
+    setDrawerOpen(true);
   }, []);
 
   // Approve / Reject recommendation

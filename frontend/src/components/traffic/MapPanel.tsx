@@ -116,13 +116,13 @@ export function MapPanel({
 
       L.control.zoom({ position: "bottomright" }).addTo(map);
 
-      // High-performance CartoDB Dark Matter tile layer (public, free, no API key required)
+      // High-resolution dark-styled OpenStreetMap tiles (100% public, free, NO watermarks, NO API key required)
       const darkMapTile = L.tileLayer(
-        "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+        "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
         {
-          subdomains: "abcd",
-          maxZoom: 20,
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+          maxZoom: 19,
+          className: "dark-map-tiles",
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         }
       );
       darkMapTile.addTo(map);
