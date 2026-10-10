@@ -40,7 +40,7 @@ export function KPIPanel({
     <section className="flex min-w-0 flex-col gap-4">
 
       {/* KPI Cards */}
-      {kpis.map((k) => (
+      {kpis.filter((k) => (k.key as string) !== "interventions").map((k) => (
         <KpiCard key={k.key} kpi={k} />
       ))}
 

@@ -771,7 +771,7 @@ export function MapPanel({
       )}
 
       {/* Leaflet GIS Map Canvas */}
-      <div ref={mapContainerRef} className="h-full w-full flex-1 min-h-0 z-0 bg-[#07090e]" />
+      <div ref={mapContainerRef} className="h-full w-full flex-1 min-h-[440px] z-0 bg-[#07090e]" />
     </div>
   );
 }

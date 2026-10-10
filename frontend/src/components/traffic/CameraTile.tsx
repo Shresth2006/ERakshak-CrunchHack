@@ -37,17 +37,30 @@ export function CameraTile({
         {/* ── Live Video Feed ───────────────────────── */}
         {hasLiveVideo && feed.online ? (
           <video
+            ref={(el) => {
+              if (el) {
+                el.muted = true;
+                el.defaultMuted = true;
+                if (el.paused) {
+                  el.play().catch(() => {});
+                }
+              }
+            }}
             src={videoUrl}
-            autoPlay loop muted playsInline
+            autoPlay
+            loop
+            muted
+            playsInline
+            preload="metadata"
             onError={(e) => {
               const target = e.currentTarget;
-              if (!target.src.includes("traffic_demo.mp4")) {
-                target.src = "/videos/traffic_demo.mp4";
+              if (!target.src.includes("traffic3.mp4")) {
+                target.src = "/videos/traffic3.mp4";
               }
             }}
             onTimeUpdate={(e) => onTimeUpdate?.(e.currentTarget.currentTime, e.currentTarget.duration)}
             className="absolute inset-0 h-full w-full object-cover"
-            style={{ opacity: 0.85 }}
+            style={{ opacity: 0.9 }}
           />
         ) : feed.online && !hasLiveVideo ? (
           /* Online camera but no video file yet — show animated placeholder */

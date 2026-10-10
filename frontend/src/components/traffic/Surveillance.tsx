@@ -208,7 +208,7 @@ export function Surveillance() {
         <div className="flex-1 min-h-0 overflow-y-auto p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">
             {gridFeeds.slice(0, GRID_SIZE).map((f, i) => (
-              <div key={f.id} className="animate-grid-appear h-full flex flex-col" style={{ animationDelay: i * 40 + "ms", opacity: 0, animationFillMode: "forwards" }}>
+              <div key={f.id} className="h-full flex flex-col">
                 <CameraTile feed={f as any} overlays={overlays} brtsOnly={brtsOnly} onClick={() => setFocus(f.id)} staggerIndex={i} />
                 {f.online && (
                   <div className="mt-3 flex items-center justify-between text-[11px] text-muted-foreground">

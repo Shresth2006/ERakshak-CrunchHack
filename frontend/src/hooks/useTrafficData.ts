@@ -128,20 +128,18 @@ function reducer(state: State, action: Action): State {
       });
 
       // Update KPI metrics dynamically
-      const kpis = state.kpis.map((k) => {
-        if (k.key === "interventions") {
-          const val = state.alerts.length + 12;
-          return { ...k, value: val };
-        }
-        if (k.key === "brtsIntrusions") {
-          const totalIntrusions = updatedJunctions.reduce(
-            (acc, j) => acc + (j.camera.online ? 1 : 0),
-            0
-          );
-          return { ...k, value: totalIntrusions };
-        }
-        return k;
-      });
+      const kpis = state.kpis
+        .filter((k) => (k.key as string) !== "interventions")
+        .map((k) => {
+          if (k.key === "brtsIntrusions") {
+            const totalIntrusions = updatedJunctions.reduce(
+              (acc, j) => acc + (j.camera.online ? 1 : 0),
+              0
+            );
+            return { ...k, value: totalIntrusions };
+          }
+          return k;
+        });
 
       return {
         ...state,
@@ -152,32 +150,109 @@ function reducer(state: State, action: Action): State {
     }
 
     case "TICK_DECAY": {
-      // Local timer tick to smoothly decrement signal countdowns and transition states
+      // Local timer tick to smoothly decrement signal countdowns, discharge vehicles, and transition states
       const updatedJunctions = state.junctions.map((j) => {
         let newCountdown = j.signalCountdown - 1;
         let newStatus = j.signalStatus;
+        let activeArm: "N" | "E" | "S" | "W" = j.activeArm || "N";
+
+        // Map lanes to directional keys
+        const getArmKey = (name: string, idx: number): "N" | "E" | "S" | "W" => {
+          const lower = name.toLowerCase();
+          if (lower.includes("north")) return "N";
+          if (lower.includes("east")) return "E";
+          if (lower.includes("south")) return "S";
+          if (lower.includes("west")) return "W";
+          return (["N", "S", "E", "W"] as const)[idx % 4] || "N";
+        };
+
+        // Update lanes: discharge queue for GREEN arm, accumulate queue for RED arms
+        const updatedLanes = j.lanes.map((lane, idx) => {
+          const armKey = getArmKey(lane.name, idx);
+          const isGreenArm = armKey === activeArm && (j.signalStatus === "GREEN");
+
+          if (isGreenArm) {
+            // GREEN: queue decreases at a good rate (discharging 1-2 vehicles per second)
+            const dischargeRate = Math.random() < 0.75 ? 1 : 2;
+            const newQ = Math.max(3, lane.queue - dischargeRate);
+            const newD = Math.max(12, Math.min(95, Math.round((newQ / 42) * 80)));
+            return {
+              ...lane,
+              queue: newQ,
+              density: newD,
+            };
+          } else {
+            // RED / WAITING: vehicle queue accumulates steadily
+            const vehicleArrived = Math.random() < 0.35;
+            const newQ = vehicleArrived ? Math.min(58, lane.queue + 1) : lane.queue;
+            const newD = Math.max(25, Math.min(98, Math.round((newQ / 42) * 85)));
+            return {
+              ...lane,
+              queue: newQ,
+              density: newD,
+            };
+          }
+        });
 
         if (newCountdown <= 0) {
-          // Dynamic adaptive signal allocation based on real-time congestion pressure
-          const queuePressure = j.congestionIndex || 40;
           if (j.signalStatus === "GREEN") {
+            // Green ends -> 3s Yellow clearance
             newStatus = "YELLOW";
-            newCountdown = 4;
+            newCountdown = 3;
           } else if (j.signalStatus === "YELLOW") {
+            // Yellow ends -> 2s all-red clearance
             newStatus = "RED";
-            // Adaptive Red duration varies dynamically between 18s and 50s based on cross-traffic demand
-            newCountdown = Math.min(52, Math.max(18, Math.round(16 + queuePressure * 0.35 + (parseInt(j.id.slice(-1)) || 1) * 3 % 11)));
+            newCountdown = 2;
+
+            // Select NEXT arm using Max-Pressure (highest queue among non-recently-serviced arms)
+            // Exclude the arm that just finished so it CANNOT get the next green signal immediately!
+            const candidateArms: ("N" | "E" | "S" | "W")[] = (["N", "E", "S", "W"] as const).filter(
+              (arm) => arm !== activeArm
+            );
+
+            // Pick the candidate arm with the maximum queue pressure
+            let highestArm = candidateArms[0];
+            let maxQueue = -1;
+            candidateArms.forEach((arm) => {
+              const lane = updatedLanes.find((l, idx) => getArmKey(l.name, idx) === arm);
+              const q = lane ? lane.queue : 0;
+              if (q > maxQueue) {
+                maxQueue = q;
+                highestArm = arm;
+              }
+            });
+
+            activeArm = highestArm;
           } else {
+            // RED clearance ends -> Selected arm turns GREEN!
             newStatus = "GREEN";
-            // Adaptive Green duration calculated by Max-Pressure controller (20s to 65s)
-            newCountdown = Math.min(65, Math.max(20, Math.round(18 + queuePressure * 0.45 + (parseInt(j.id.slice(-1)) || 1) * 4 % 13)));
+            const currentLane = updatedLanes.find((l, idx) => getArmKey(l.name, idx) === activeArm);
+            const targetQueue = currentLane ? currentLane.queue : 35;
+            // Adaptive Green duration dynamically proportional to queue pressure (20s to 55s)
+            newCountdown = Math.min(55, Math.max(20, Math.round(18 + targetQueue * 0.8)));
           }
         }
+
+        // Recalculate average junction congestion index from lanes
+        const avgLaneDensity = Math.round(
+          updatedLanes.reduce((sum, l) => sum + l.density, 0) / Math.max(1, updatedLanes.length)
+        );
+
+        const armLabels = {
+          N: "North Approach Phase",
+          E: "East Approach Phase",
+          S: "South Approach Phase",
+          W: "West Approach Phase",
+        };
 
         return {
           ...j,
           signalCountdown: newCountdown,
           signalStatus: newStatus,
+          activeArm,
+          current_phase: armLabels[activeArm],
+          lanes: updatedLanes,
+          congestionIndex: avgLaneDensity,
         };
       });
 

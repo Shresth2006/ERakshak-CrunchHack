@@ -679,15 +679,6 @@ export const INITIAL_KPIS: Kpi[] = [
     spark: spark(19000, 900, 5),
   },
   {
-    key: "interventions",
-    label: "Active optimizer interventions",
-    value: 14,
-    unit: "live",
-    baseline: "6 junctions re-phased in last hr",
-    baselineTone: "ok",
-    spark: spark(12, 3, 2),
-  },
-  {
     key: "laneViolations",
     label: "Lane-discipline violations today",
     value: 268,

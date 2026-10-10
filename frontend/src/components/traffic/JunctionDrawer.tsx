@@ -1006,25 +1006,21 @@ function FourWayIntersectionDiagram({ junction }: { junction: Junction }) {
   const eLane = junction.lanes.find((l) => l.name.toLowerCase().includes("east") || (l as any).direction === "E") || junction.lanes[2];
   const wLane = junction.lanes.find((l) => l.name.toLowerCase().includes("west") || (l as any).direction === "W") || junction.lanes[3];
 
-  let activeArm: "N" | "E" | "S" | "W" = "N";
-
-  const phaseLower = ((junction as any).current_phase || "").toLowerCase();
-  if (phaseLower.includes("south")) activeArm = "S";
-  else if (phaseLower.includes("east")) activeArm = "E";
-  else if (phaseLower.includes("west")) activeArm = "W";
-  else if (phaseLower.includes("north")) activeArm = "N";
-  else {
-    const armList: ("N" | "E" | "S" | "W")[] = ["N", "E", "S", "W"];
-    const jNum = parseInt(junction.id.replace(/\D/g, "") || "1", 10);
-    const timeBucket = Math.floor((junction.signalCountdown || 10) / 12);
-    activeArm = armList[(jNum + timeBucket) % 4] || "N";
+  let activeArm: "N" | "E" | "S" | "W" = junction.activeArm || "N";
+  if (!junction.activeArm) {
+    const phaseLower = ((junction as any).current_phase || "").toLowerCase();
+    if (phaseLower.includes("south")) activeArm = "S";
+    else if (phaseLower.includes("east")) activeArm = "E";
+    else if (phaseLower.includes("west")) activeArm = "W";
+    else if (phaseLower.includes("north")) activeArm = "N";
   }
 
   const isYellow = junction.signalStatus === "YELLOW";
-  const nStatus = activeArm === "N" ? (isYellow ? "YELLOW" : "GREEN") : "RED";
-  const sStatus = activeArm === "S" ? (isYellow ? "YELLOW" : "GREEN") : "RED";
-  const eStatus = activeArm === "E" ? (isYellow ? "YELLOW" : "GREEN") : "RED";
-  const wStatus = activeArm === "W" ? (isYellow ? "YELLOW" : "GREEN") : "RED";
+  const isAllRed = junction.signalStatus === "RED";
+  const nStatus = isAllRed ? "RED" : activeArm === "N" ? (isYellow ? "YELLOW" : "GREEN") : "RED";
+  const sStatus = isAllRed ? "RED" : activeArm === "S" ? (isYellow ? "YELLOW" : "GREEN") : "RED";
+  const eStatus = isAllRed ? "RED" : activeArm === "E" ? (isYellow ? "YELLOW" : "GREEN") : "RED";
+  const wStatus = isAllRed ? "RED" : activeArm === "W" ? (isYellow ? "YELLOW" : "GREEN") : "RED";
 
   const statusColor = (st: string) =>
     st === "GREEN" ? "#22c55e" : st === "YELLOW" ? "#f59e0b" : "#ef4444";

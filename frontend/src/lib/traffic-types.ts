@@ -28,6 +28,8 @@ export type Junction = {
   adaptiveCycle: { phase: string; seconds: number; color: string }[];
   staticCycle: { phase: string; seconds: number; color: string }[];
   whatIfDelta: number; // % congestion increase if reverted to fixed timing
+  activeArm?: "N" | "E" | "S" | "W";
+  current_phase?: string;
   lanes: Lane[];
   camera: { id: string; online: boolean };
 };
