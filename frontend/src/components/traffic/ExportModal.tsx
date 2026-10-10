@@ -427,7 +427,24 @@ export function ExportModal({
         console.warn("Backend report endpoint unavailable, generating client fallback:", networkErr);
       }
 
-      // If backend returned 404 or failed, seamlessly generate report client-side
+      // If backend returned 404 or failed, seamlessly serve Vishal's ReportLab PDF for PDF format
+      if (!downloadBlobFile && format === "pdf") {
+        try {
+          const staticPdfUrl = `/reports/erakshak_report_${period}.pdf`;
+          let staticRes = await fetch(staticPdfUrl);
+          if (!staticRes.ok) {
+            staticRes = await fetch("/reports/erakshak_report_default.pdf");
+          }
+          if (staticRes.ok) {
+            downloadBlobFile = await staticRes.blob();
+            downloadFilename = `erakshak_executive_report_${period}.pdf`;
+          }
+        } catch (staticErr) {
+          console.warn("Static report load error:", staticErr);
+        }
+      }
+
+      // Fallback for CSV and JSON or if static file is unavailable
       if (!downloadBlobFile) {
         const fallback = generateClientExportBlob(
           format,
