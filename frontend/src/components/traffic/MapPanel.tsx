@@ -101,23 +101,13 @@ export function MapPanel({
 
   const [mapTheme, setMapTheme] = useState<"tactical" | "grayscale">("tactical");
 
-  // Helper to build tile layer dynamically based on theme
+  // Helper to build tile layer dynamically based on theme (100% free, zero watermarks, no API key)
   const createTileLayer = (L: any, theme: "tactical" | "grayscale") => {
-    if (theme === "grayscale") {
-      return L.tileLayer(
-        "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-        {
-          subdomains: "abcd",
-          maxZoom: 20,
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        }
-      );
-    }
     return L.tileLayer(
       "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
       {
         maxZoom: 19,
-        className: "dark-map-tiles",
+        className: theme === "grayscale" ? "grayscale-map-tiles" : "dark-map-tiles",
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       }
     );
@@ -162,6 +152,21 @@ export function MapPanel({
     if (!mapInstanceRef.current || !leafletRef.current) return;
     const L = leafletRef.current;
     const map = mapInstanceRef.current;
+
+    // Fast path: toggle class name directly on tile container to switch instantly without reloading
+    if (tileRef.current && typeof tileRef.current.getContainer === "function") {
+      const container = tileRef.current.getContainer();
+      if (container) {
+        if (mapTheme === "grayscale") {
+          container.classList.remove("dark-map-tiles");
+          container.classList.add("grayscale-map-tiles");
+        } else {
+          container.classList.remove("grayscale-map-tiles");
+          container.classList.add("dark-map-tiles");
+        }
+        return;
+      }
+    }
 
     if (tileRef.current) {
       map.removeLayer(tileRef.current);
