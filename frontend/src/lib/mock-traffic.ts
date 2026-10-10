@@ -23,6 +23,7 @@ export const CLASS_COLOR: Record<Box["cls"], string> = {
   "two-wheeler": "oklch(0.8 0.16 78)",
   truck: "oklch(0.72 0.14 285)",
   auto: "oklch(0.78 0.1 220)",
+  ambulance: "oklch(0.7 0.22 25)",
 };
 
 const lanes = (seed: number, base: number) =>

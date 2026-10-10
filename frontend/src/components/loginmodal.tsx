@@ -71,7 +71,7 @@ export default function loginmodal({ onLoginSuccess }: loginmodalProps) {
         const demoToken = 'erakshak_jwt_demo_' + Date.now();
         localStorage.setItem('erakshak_jwt', demoToken);
         localStorage.setItem('erakshak_operator_email', email.trim() || 'operator@surat.gov.in');
-        onLoginSuccess({ access_token: demoToken, token_type: 'bearer', role: 'operator' });
+        onLoginSuccess({ access_token: demoToken, role: 'operator' });
         return;
       }
       setError(err.message);

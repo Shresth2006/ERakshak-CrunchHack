@@ -116,12 +116,13 @@ export function MapPanel({
 
       L.control.zoom({ position: "bottomright" }).addTo(map);
 
-      // Smooth Dark Map Tile
+      // High-performance CartoDB Dark Matter tile layer (public, free, no API key required)
       const darkMapTile = L.tileLayer(
-        "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png",
+        "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
         {
+          subdomains: "abcd",
           maxZoom: 20,
-          attribution: '&copy; <a href="https://stadia.com">Stadia Maps</a>, &copy; OpenStreetMap',
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
         }
       );
       darkMapTile.addTo(map);
@@ -199,6 +200,8 @@ export function MapPanel({
     ambulancePathLinesRef.current = [glowPath, corePath];
 
     const startPoint = AMBULANCE_ROUTE[0];
+    if (!startPoint) return;
+
     const ambulanceIcon = L.divIcon({
       className: "custom-leaflet-ambulance-marker",
       html: `
@@ -241,7 +244,9 @@ export function MapPanel({
         setAmbulanceProgress(maxP);
         setAmbulanceArrived(true);
         const lastPt = AMBULANCE_ROUTE[maxP];
-        ambMarker.setLatLng([lastPt.lat, lastPt.lng]);
+        if (lastPt) {
+          ambMarker.setLatLng([lastPt.lat, lastPt.lng]);
+        }
         clearInterval(animFrameRef.current);
         animFrameRef.current = null;
         return;
@@ -251,6 +256,7 @@ export function MapPanel({
       const frac = currentP - idx;
       const p1 = AMBULANCE_ROUTE[idx];
       const p2 = AMBULANCE_ROUTE[Math.min(maxP, idx + 1)];
+      if (!p1 || !p2) return;
 
       const currLat = p1.lat + frac * (p2.lat - p1.lat);
       const currLng = p1.lng + frac * (p2.lng - p1.lng);

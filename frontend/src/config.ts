@@ -4,7 +4,7 @@
  *   but VITE_API_URL can be set to http://localhost:8000 for direct use.
  * - In production (Vercel): VITE_API_URL = https://your-backend.onrender.com
  */
-const rawBase = import.meta.env.VITE_API_URL as string | undefined;
+const rawBase = import.meta.env['VITE_API_URL'] as string | undefined;
 
 // Strip trailing slash if present
 export const API_BASE = rawBase ? rawBase.replace(/\/$/, '') : '';
