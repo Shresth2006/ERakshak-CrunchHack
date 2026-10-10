@@ -544,7 +544,7 @@ export function useTrafficData() {
 
     const countdownTimer = setInterval(() => {
       dispatch({ type: "TICK_DECAY" });
-    }, 1000);
+    }, 500);
 
     // 3. Real YOLO Video Detections Stream across active camera feeds
     const cameraMap: { id: string; jName: string; videoKey: string }[] = [
