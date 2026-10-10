@@ -62,13 +62,19 @@ export function Reports() {
 
   // Click on KPI card routes directly to deep tab
   const handleKpiCardClick = (kpiId: string) => {
-    if (kpiId === "network_delay" || kpiId === "throughput" || kpiId === "congested_junctions") {
+    if (
+      kpiId === "network_delay" ||
+      kpiId === "avg_delay" ||
+      kpiId === "throughput" ||
+      kpiId === "congested_junctions" ||
+      kpiId === "green_wave"
+    ) {
       setActiveTab("CONGESTION");
     } else if (kpiId === "open_incidents") {
       setActiveTab("INCIDENTS");
-    } else if (kpiId === "violations") {
+    } else if (kpiId === "violations" || kpiId === "intrusions") {
       setActiveTab("ENFORCEMENT");
-    } else if (kpiId === "system_health") {
+    } else if (kpiId === "system_health" || kpiId === "carbon_reduction") {
       setActiveTab("SYSTEM HEALTH");
     }
   };
