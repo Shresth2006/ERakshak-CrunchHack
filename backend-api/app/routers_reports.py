@@ -49,24 +49,26 @@ async def download_pdf_report(
 
     # Run blocking DB aggregation in threadpool
     stats = await run_in_threadpool(aggregate, db, p)
-    audit_raw = f"{p.slug}:{stats.get('violations', {}).get('total', 0)}:{stats.get('data_quality', {}).get('coverage_pct', 100)}"
-    stats["audit_hash"] = f"SHA256-{hashlib.sha256(audit_raw.encode()).hexdigest()[:16].upper()}"
 
     narr, used_ai = await narrate(stats, use_ai=ai)
 
     generated_at = datetime.now(IST).strftime("%d %b %Y %H:%M IST")
+    report_id = f"STR-{datetime.now(IST).strftime('%Y%m%d')}-0001"
     
     # Run CPU-intensive PDF compilation in threadpool
-    pdf_bytes = await run_in_threadpool(build_pdf, p.label, stats, narr, used_ai, generated_at)
+    pdf_bytes = await run_in_threadpool(build_pdf, p.label, stats, narr, used_ai, generated_at, report_id)
 
-    filename = f"erakshak_report_{p.slug}.pdf"
+    from app.reports.titles import filename as get_pdf_filename
+    pdf_filename = get_pdf_filename(p)
+
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Disposition": f'attachment; filename="{pdf_filename}"',
             "Cache-Control": "no-store",
             "X-Report-AI-Used": str(used_ai).lower(),
+            "X-Report-ID": report_id,
         },
     )
 

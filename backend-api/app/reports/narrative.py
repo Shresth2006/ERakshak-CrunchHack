@@ -1,14 +1,12 @@
 # backend-api/app/reports/narrative.py
 """
-narrative.py — Privacy-Hardened Traffic Intelligence Analyst
-=============================================================
-Provides distinct analytical narrative generation:
-  1. AI Synthesis Mode (Gemini Cloud + Local Neural Fallback):
-     Rich strategic foresight, spatial anomaly diagnostics, predictive risk assessment,
-     and prioritized traffic-engineering interventions.
-     Uses DataPrivacyCipher (HMAC-SHA256 salted tokenization) guaranteeing ZERO data leak.
-  2. Standard Algorithmic Mode (Pure SQL Ledger):
-     Mathematical audit, threshold verification, and tabular compliance recording.
+narrative.py — Traffic Intelligence AI Analyst & Deterministic Fallback
+========================================================================
+Generates analytical briefings for Surat Police:
+  - Strict grounding in SQL aggregates
+  - Salted HMAC pseudonymisation round-trip with verification
+  - Hallucination guard (unsupported number detection)
+  - Transparent deterministic fallback narrative
 """
 
 from __future__ import annotations
@@ -34,53 +32,45 @@ except ImportError:
 
 log = logging.getLogger("reports.gemini")
 
-# In-memory cache for deterministic payload hashes
 _NARRATIVE_CACHE: Dict[str, Tuple[ReportNarrative, bool]] = {}
 
 
 # ---------------------------------------------------------------------------
-# Cryptographic Privacy & Zero-Leak Tokenization Cipher
+# Salted HMAC Pseudonymisation Cipher
 # ---------------------------------------------------------------------------
 
 class DataPrivacyCipher:
-    """Cryptographically anonymizes infrastructure and location names before
-    cloud transmission to Google Gemini. Gemini only sees abstract tokens.
-    """
-
     def __init__(self, salt: Optional[str] = None):
         self._salt = salt or secrets.token_hex(16)
         self._token_to_name: Dict[str, str] = {}
         self._name_to_token: Dict[str, str] = {}
 
-    def _generate_token(self, name: str, prefix: str = "SEC-LOC") -> str:
+    def _generate_token(self, name: str) -> str:
         digest = hmac.new(self._salt.encode("utf-8"), name.encode("utf-8"), hashlib.sha256).hexdigest()
-        return f"[{prefix}-{digest[:6].upper()}]"
+        return f"[NODE-{digest[:6].upper()}]"
 
     def encrypt_name(self, name: str) -> str:
         if not name or not name.strip():
             return name
-        clean_name = name.strip()
-        if clean_name not in self._name_to_token:
-            token = self._generate_token(clean_name)
-            self._name_to_token[clean_name] = token
-            self._token_to_name[token] = clean_name
-        return self._name_to_token[clean_name]
+        clean = name.strip()
+        if clean not in self._name_to_token:
+            token = self._generate_token(clean)
+            self._name_to_token[clean] = token
+            self._token_to_name[token] = clean
+        return self._name_to_token[clean]
 
-    def encrypt_stats_payload(self, stats: dict) -> dict:
-        sanitized = json.loads(json.dumps(stats))
-        for item in sanitized.get("violations", {}).get("top_junctions", []):
+    def encrypt_stats(self, stats: dict) -> dict:
+        copied = json.loads(json.dumps(stats))
+        for item in copied.get("violations", {}).get("top_junctions", []):
             if "junction" in item:
                 item["junction"] = self.encrypt_name(item["junction"])
-        for item in sanitized.get("traffic", {}).get("junctions", []):
-            if "junction_name" in item:
-                item["junction_name"] = self.encrypt_name(item["junction_name"])
-        rec_list = sanitized.get("recommendations", [])
-        if isinstance(rec_list, dict):
-            rec_list = rec_list.get("items", [])
-        for item in rec_list:
+        for item in copied.get("traffic", {}).get("junctions", []):
+            if "junction" in item:
+                item["junction"] = self.encrypt_name(item["junction"])
+        for item in copied.get("recommendations", []):
             if isinstance(item, dict) and "junction" in item:
                 item["junction"] = self.encrypt_name(item["junction"])
-        return sanitized
+        return copied
 
     def decrypt_text(self, text: str) -> str:
         if not text:
@@ -103,254 +93,161 @@ class DataPrivacyCipher:
             data_quality_note=self.decrypt_text(narr.data_quality_note),
         )
 
+    def assert_no_tokens(self, narr: ReportNarrative) -> None:
+        raw_json = narr.model_dump_json()
+        for token in self._token_to_name:
+            if token in raw_json:
+                raise ValueError(f"Unmapped token left in narrative: {token}")
+
 
 # ---------------------------------------------------------------------------
-# Structured Output Schema
+# Structured Models & Prompt
 # ---------------------------------------------------------------------------
 
 class Finding(BaseModel):
-    title: str = Field(description="Headline for the analytical finding")
-    detail: str = Field(description="Detailed contextual finding incorporating verified numbers")
+    title: str = Field(description="Headline for the finding")
+    detail: str = Field(description="Contextual finding incorporating real numbers from data")
 
 
 class ReportNarrative(BaseModel):
-    executive_summary: str = Field(description="Comprehensive executive briefing")
-    key_findings: List[Finding] = Field(description="Primary analytical observations", max_length=6)
-    violation_analysis: str = Field(description="Detailed spatial and modal violation analysis")
-    congestion_analysis: str = Field(description="Arterial throughput, queue dynamics, and speed analysis")
-    recommended_actions: List[str] = Field(description="Prioritized operational advisories", max_length=6)
-    data_quality_note: str = Field(description="Telemetry audit integrity and sensor coverage statement")
+    executive_summary: str = Field(description="Briefing of 3 to 5 sentences")
+    key_findings: List[Finding] = Field(description="Up to 3 data-backed operational findings", max_length=4)
+    violation_analysis: str = Field(description="Analysis of violation types and hotspots")
+    congestion_analysis: str = Field(description="Queue length and speed observations")
+    recommended_actions: List[str] = Field(description="Up to 4 practical traffic recommendations", max_length=5)
+    data_quality_note: str = Field(description="Honest statement on data coverage and limitations")
 
 
-SYSTEM_PROMPT = """You are a Principal Traffic-Engineering Intelligence Analyst writing an official executive
-briefing for the Surat Municipal Corporation (SMC) and City Traffic Police Command.
+SYSTEM_PROMPT = """You are a traffic-engineering intelligence analyst writing an official report for Surat City Traffic Police and Municipal authorities.
 
-DATA PRIVACY NOTICE:
-All corridor locations and junction names in the input data have been cryptographically pseudonymized
-with tokens (e.g. [SEC-LOC-XXXX]) to enforce Zero-Leak privacy governance. Refer to nodes using these exact tokens.
-
-STRICT INSTRUCTIONS:
-1. Ground every claim strictly in the numbers from the DATA block. Do not invent or estimate unlisted figures.
-2. Provide deep, high-level strategic intelligence: explain root-cause relationships between queue lengths,
-   BRTS corridor intrusions, and signal split performance.
-3. Formulate concrete, engineering-grounded operational advisories (signal offsets, ANPR enforcement, wardens).
-4. Write in authoritative, publication-quality professional English. No markdown headings (#), no HTML."""
+STRICT RULES:
+1. Ground every statement ONLY in numbers provided in the DATA block. Never invent, extrapolate, or estimate figures.
+2. Never state projections, savings percentages (e.g. '18-24%'), or hypothetical gains unless present in DATA.
+3. Do not claim causes. Use wording like 'may indicate' or 'is consistent with'. Never write 'is the leading driver'.
+4. If two values are equal, state 'joint highest' or 'tied', never 'followed closely'.
+5. Refer to violation types using the exact labels in DATA.
+6. Executive summary: at most 5 sentences. Each key finding: at most 2 sentences.
+7. Plain, professional English. No markdown formatting (#, *, **), no HTML, no emojis.
+8. If data_quality.coverage_pct is below 70, the executive summary must mention that telemetry coverage is partial."""
 
 
 # ---------------------------------------------------------------------------
-# Verification Guard (Hallucination Detection)
+# Number Guard (Hallucination Detection)
 # ---------------------------------------------------------------------------
 
-_NUM_REGEX = re.compile(r"\b\d+(?:\.\d+)?\b")
+_NUM = re.compile(r"\b\d+(?:\.\d+)?\b")
 
 def _flatten_numbers(obj: Any, out: Set[str]) -> None:
     if isinstance(obj, dict):
-        for v in obj.values(): _flatten_numbers(v, out)
+        for v in obj.values():
+            _flatten_numbers(v, out)
     elif isinstance(obj, (list, tuple)):
-        for item in obj: _flatten_numbers(item, out)
+        for item in obj:
+            _flatten_numbers(item, out)
     elif isinstance(obj, (int, float)):
-        out.add(f"{obj:g}"); out.add(str(obj)); out.add(str(int(obj)))
+        out.add(f"{obj:g}")
     elif isinstance(obj, str):
-        for m in _NUM_REGEX.findall(obj): out.add(m)
+        out.update(m.replace(",", "") for m in _NUM.findall(obj))
 
 def unsupported_numbers(narr: ReportNarrative, stats: dict) -> List[str]:
     allowed: Set[str] = set()
     _flatten_numbers(stats, allowed)
-    narr_text = f"{narr.executive_summary} {narr.violation_analysis} {narr.congestion_analysis} {narr.data_quality_note} " + " ".join(f.detail for f in narr.key_findings) + " " + " ".join(narr.recommended_actions)
-    found = _NUM_REGEX.findall(narr_text)
-    return [n for n in found if n not in allowed and not (n.isdigit() and 1 <= int(n) <= 10)]
+    text = narr.model_dump_json()
+    found = [m.replace(",", "") for m in _NUM.findall(text)]
+    return [n for n in found if n not in allowed and not (n.isdigit() and int(n) <= 10)]
 
 
 # ---------------------------------------------------------------------------
-# 1. AI Strategic Foresight & Synthesis (Used when AI is ON)
+# Deterministic Fallback Narrative
 # ---------------------------------------------------------------------------
 
-def ai_strategic_synthesis(stats: dict) -> ReportNarrative:
-    """Produces deep strategic intelligence, spatial anomaly attribution, and
-    predictive corridor foresight strictly from SQL registers (used when AI is ON).
-    """
-    period_info = stats.get("period", {})
-    label = period_info.get("label", "Selected Reporting Window")
-    
-    v_stats = stats.get("violations", {})
-    total_viol = v_stats.get("total", 0)
-    change_pct = v_stats.get("change_pct")
-    by_type = v_stats.get("by_type", [])
-    top_junctions = v_stats.get("top_junctions", [])
-    
-    t_stats = stats.get("traffic", {})
-    summary = t_stats.get("summary", {})
-    avg_q = summary.get("avg_queue_m", 0.0)
-    peak_q = summary.get("peak_queue_m", 0.0)
-    avg_spd = summary.get("avg_speed_kmh", 0.0)
-    j_count = summary.get("active_junctions", 0)
-    
+def fallback_narrative(stats: dict) -> ReportNarrative:
+    p = stats.get("period", {})
+    k = stats.get("kpis", {})
+    v = stats.get("violations", {})
+    t = stats.get("traffic", {}).get("junctions", [])
     dq = stats.get("data_quality", {})
-    cov_pct = dq.get("coverage_pct", 100.0)
 
-    # Executive Summary with strategic foresight
-    delta_text = ""
-    if change_pct is not None:
-        direction = "an elevated surge" if change_pct > 0 else "a disciplined decline"
-        delta_text = f" This registers {direction} of {abs(change_pct):.1f}% relative to baseline reference."
+    total_v = v.get("total", 0)
+    chg = v.get("change_pct")
+    cov = dq.get("coverage_pct", 100.0)
 
-    top_hotspot_name = top_junctions[0]["junction"] if top_junctions else "Arterial Ring Road"
-    top_hotspot_count = top_junctions[0]["count"] if top_junctions else 0
+    summary_parts = [f"Report for {p.get('label', 'this period')}."]
+    summary_parts.append(f"A total of {total_v} traffic violations were recorded across the monitored network")
+    if chg is not None:
+        direction = "an increase of" if chg > 0 else "a decrease of"
+        summary_parts.append(f"representing {direction} {abs(chg):.1f}% compared to the previous period.")
+    else:
+        summary_parts.append(".")
 
-    exec_summary = (
-        f"EXECUTIVE STRATEGIC APPRAISAL: Surveillance registers for {label} logged a cumulative {total_viol} "
-        f"verified enforcement anomalies across {j_count} monitored arterial nodes.{delta_text} "
-        f"Network performance models indicate an average queue accumulation of {avg_q:.1f} m, with localized peak "
-        f"surges reaching {peak_q:.1f} m and a citywide mean arterial speed of {avg_spd:.1f} km/h. "
-        f"Critical incident density is predominantly concentrated at {top_hotspot_name} ({top_hotspot_count} infractions), "
-        "warranting coordinated adaptive green-split adjustments and automated ANPR perimeter enforcement."
-    )
+    if cov < 70.0:
+        summary_parts.append(f"Telemetry sensor coverage was {cov:.1f}%; queue and velocity indicators reflect reporting junctions.")
 
+    # Key Findings
     findings: List[Finding] = []
+    by_type = v.get("by_type", [])
     if by_type:
-        f_top = by_type[0]
+        top_t = by_type[0]
         findings.append(Finding(
-            title="Corridor Integrity & Primary Infraction Modality",
-            detail=f"{f_top['type']} emerged as the primary enforcement liability, accounting for {f_top['count']} verified incidents. Unauthorized intrusions into rapid transit corridors severely impair scheduled bus headway reliability."
+            title="Primary Infraction Modality",
+            detail=f"{top_t['type']} accounted for {top_t['count']} cases ({top_t.get('share_pct', 0):.0f}% of total recorded violations)."
         ))
-    if top_junctions:
-        h1 = top_junctions[0]
-        h2 = top_junctions[1] if len(top_junctions) > 1 else None
-        h2_text = f", followed closely by {h2['junction']} ({h2['count']} incidents)" if h2 else ""
-        findings.append(Finding(
-            title="Spatial Density Clustering & Severe Hotspots",
-            detail=f"Spatial clustering analysis identifies {h1['junction']} as the primary nodal bottleneck with {h1['count']} logged violations{h2_text}. Flow asymmetry across conflicting approaches is the leading driver of queue spillbacks."
-        ))
-    if peak_q > 45.0:
-        findings.append(Finding(
-            title="Peak Hour Queue Spillback & Fluvial Degradation",
-            detail=f"Sensors registered maximum queue spillbacks of {peak_q:.1f} m during evening peak cycles. Arterial throughput dropped significantly on critical approaches, causing upstream friction."
-        ))
-    findings.append(Finding(
-        title="Predictive Signal Optimization Opportunity",
-        detail=f"Adaptive signal coordination along primary corridors can reclaim an estimated 18-24% in lost green time by reallocating slack phases from secondary side streets."
-    ))
 
-    # Detailed Violation Analysis
-    viol_analysis = (
-        f"Spatial surveillance registers recorded a total of {total_viol} violations over the duration. "
-        + (f"Category breakdown: " + ", ".join(f"{t['type']} ({t['count']})" for t in by_type) + ". " if by_type else "")
-        + (f"Top spatial clusters: " + ", ".join(f"{j['junction']} ({j['count']})" for j in top_junctions[:4]) + ". " if top_junctions else "")
-        + "Corridor analysis confirms that BRTS intrusions cluster heavily during peak office commute windows (08:30-10:30 and 17:30-20:00), causing cascade delays to municipal transit."
+    top_j = v.get("top_junctions", [])
+    if top_j:
+        max_cnt = top_j[0]["count"]
+        tied_j = [item["junction"] for item in top_j if item["count"] == max_cnt]
+        if len(tied_j) > 1:
+            findings.append(Finding(
+                title="Top Enforcement Hotspots",
+                detail=f"{', '.join(tied_j[:2])} tied for the highest violation count with {max_cnt} incidents each."
+            ))
+        else:
+            findings.append(Finding(
+                title="Top Enforcement Hotspot",
+                detail=f"{top_j[0]['junction']} logged the highest number of violations ({max_cnt} incidents)."
+            ))
+
+    if t:
+        worst_q = max(t, key=lambda j: j.get("avg_queue_m", 0.0))
+        if worst_q.get("avg_queue_m", 0) > 0:
+            findings.append(Finding(
+                title="Peak Congestion Corridor",
+                detail=f"{worst_q['junction']} recorded the longest average queue at {worst_q['avg_queue_m']:.1f} m (peak {worst_q['max_queue_m']:.1f} m)."
+            ))
+
+    v_analysis = (
+        f"Recorded infractions totalled {total_v}. "
+        + (f"Most prevalent category was {by_type[0]['type']} with {by_type[0]['count']} logged incidents. " if by_type else "")
+        + "Enforcement teams should review signalized intersections with recurring stop-line and lane compliance issues."
     )
 
-    # Congestion Analysis
-    congestion_analysis = (
-        f"Network telemetry evaluated across {j_count} active multi-phase intersections indicates steady arterial demand with "
-        f"a mean queue length of {avg_q:.1f} m (peak {peak_q:.1f} m) and an average speed of {avg_spd:.1f} km/h. "
-        f"Junctions operating near capacity exhibited fill ratios above 0.82 during peak hours, necessitating dynamic cycle extension."
+    avg_q_str = f"{k.get('avg_queue_m', 0.0):.1f} m" if k.get("avg_queue_m") is not None else "unavailable"
+    avg_spd_str = f"{k.get('avg_speed_kmh', 0.0):.1f} km/h" if k.get("avg_speed_kmh") is not None else "unavailable"
+    c_analysis = (
+        f"Network-wide average queue depth was {avg_q_str} with average arterial speed at {avg_spd_str}. "
+        f"Telemetry data was received from {len(t)} junctions."
     )
 
-    # Recommended Actions
-    actions = [
-        f"Deploy automated ANPR gate enforcement and priority wardens at {top_hotspot_name}.",
-        f"Extend adaptive max-green thresholds by +12-16 seconds on approaches experiencing queue lengths > {min(peak_q, 60):.1f} m.",
-        "Implement synchronized arterial green wave progression along major Ring Road corridors.",
-        "Integrate dynamic electronic variable-message signs (VMS) 200m ahead of key intersections to deter lane intrusions.",
-        "Review phase clearance amber times on high-speed approaches to mitigate red-light dilemma zone violations."
+    recs = [
+        "Deploy targeted warden presence at identified high-volume violation corridors during peak hours.",
+        "Review signal timing splits on arterial approaches showing persistent queue spillbacks.",
+        "Verify camera sensor calibration and network connectivity at junctions reporting low telemetry coverage.",
     ]
 
-    quality_note = (
-        f"Surat Smart City Telemetry Audit confirms {cov_pct:.1f}% sample coverage integrity across active road infrastructure. "
-        "All figures verified against municipal database registers with zero data leakage guarantees."
+    dq_note = (
+        f"Telemetry coverage was {cov:.1f}% across {len(t)} monitored junctions. "
+        + (f"{len(dq.get('silent_junctions', []))} junctions reported no samples. " if dq.get("silent_junctions") else "")
+        + "All statistics were computed directly from verified database records."
     )
 
     return ReportNarrative(
-        executive_summary=exec_summary,
-        key_findings=findings,
-        violation_analysis=viol_analysis,
-        congestion_analysis=congestion_analysis,
-        recommended_actions=actions,
-        data_quality_note=quality_note
-    )
-
-
-# ---------------------------------------------------------------------------
-# 2. Standard Algorithmic Audit (Used when AI is OFF)
-# ---------------------------------------------------------------------------
-
-def algorithmic_standard_narrative(stats: dict) -> ReportNarrative:
-    """Produces a deterministic, formal statistical audit ledger (used when AI is OFF).
-    Focused strictly on numerical counts, compliance thresholds, and registers.
-    """
-    period_info = stats.get("period", {})
-    label = period_info.get("label", "Selected Reporting Period")
-    
-    v_stats = stats.get("violations", {})
-    total_viol = v_stats.get("total", 0)
-    change_pct = v_stats.get("change_pct")
-    by_type = v_stats.get("by_type", [])
-    top_junctions = v_stats.get("top_junctions", [])
-    
-    t_stats = stats.get("traffic", {})
-    summary = t_stats.get("summary", {})
-    avg_q = summary.get("avg_queue_m", 0.0)
-    peak_q = summary.get("peak_queue_m", 0.0)
-    avg_spd = summary.get("avg_speed_kmh", 0.0)
-    j_count = summary.get("active_junctions", 0)
-    
-    dq = stats.get("data_quality", {})
-    cov_pct = dq.get("coverage_pct", 100.0)
-
-    delta_str = f" Delta vs preceding window: {change_pct:+.1f}%." if change_pct is not None else ""
-
-    exec_summary = (
-        f"STATISTICAL COMPLIANCE AUDIT: Standard algorithmic ledger for {label}. "
-        f"Total recorded violation events: {total_viol}.{delta_str} "
-        f"Sensor telemetry recorded an average queue length of {avg_q:.1f} m (peak: {peak_q:.1f} m) "
-        f"and average speed of {avg_spd:.1f} km/h across {j_count} monitored junctions. "
-        "All logged events are itemized in accordance with municipal traffic enforcement registers."
-    )
-
-    findings = [
-        Finding(
-            title="Infraction Count Audit",
-            detail=f"A total of {total_viol} violation entries were validated in the SQL database for the reporting window."
-        ),
-        Finding(
-            title="Queue Parameter Verification",
-            detail=f"Network queue statistics reflect a mean of {avg_q:.1f} meters, peaking at {peak_q:.1f} meters."
-        ),
-        Finding(
-            title="Speed & Flow Thresholds",
-            detail=f"Calculated average vehicular speed across active corridors is {avg_spd:.1f} km/h."
-        )
-    ]
-
-    viol_analysis = (
-        f"Database register records {total_viol} verified infraction entries. "
-        + (f"Type distribution: " + ", ".join(f"{t['type']} = {t['count']}" for t in by_type) + ". " if by_type else "")
-        + (f"Top junction tallies: " + ", ".join(f"{j['junction']} = {j['count']}" for j in top_junctions) + "." if top_junctions else "")
-    )
-
-    congestion_analysis = (
-        f"Deterministic aggregation across {j_count} junctions yielded average queue {avg_q:.1f} m, "
-        f"peak queue {peak_q:.1f} m, and average velocity {avg_spd:.1f} km/h."
-    )
-
-    actions = [
-        "Maintain scheduled camera calibration and loop sensor maintenance.",
-        "Review signal timing plans where peak queue exceeds 50.0 meters.",
-        "Export violation logs to municipal traffic challan database."
-    ]
-
-    quality_note = (
-        f"Deterministic audit confirms {cov_pct:.1f}% telemetry sample integrity. "
-        "Generated via standard algorithmic registers (AI Disabled)."
-    )
-
-    return ReportNarrative(
-        executive_summary=exec_summary,
-        key_findings=findings,
-        violation_analysis=viol_analysis,
-        congestion_analysis=congestion_analysis,
-        recommended_actions=actions,
-        data_quality_note=quality_note
+        executive_summary=" ".join(summary_parts),
+        key_findings=findings[:3],
+        violation_analysis=v_analysis,
+        congestion_analysis=c_analysis,
+        recommended_actions=recs,
+        data_quality_note=dq_note,
     )
 
 
@@ -359,47 +256,36 @@ def algorithmic_standard_narrative(stats: dict) -> ReportNarrative:
 # ---------------------------------------------------------------------------
 
 async def narrate(stats: dict, use_ai: bool = True) -> Tuple[ReportNarrative, bool]:
-    """Generates narrative analysis.
-    
-    If use_ai is False: returns algorithmic_standard_narrative(stats).
-    If use_ai is True:
-      - Attempts Google Gemini with Zero-Leak cryptographic encryption if API key exists.
-      - If no API key or network error, falls back to ai_strategic_synthesis(stats).
-    """
-    if not use_ai:
-        log.info("AI toggle is OFF: generating deterministic statistical ledger.")
-        return algorithmic_standard_narrative(stats), False
-
-    # Check cache for identical payload
-    cache_key = hashlib.sha256(json.dumps(stats, sort_keys=True).encode("utf-8")).hexdigest()
-    if cache_key in _NARRATIVE_CACHE:
-        log.info("Returning cached AI narrative for hash: %s", cache_key[:8])
-        return _NARRATIVE_CACHE[cache_key]
+    """Generates narrative briefing. Never raises: transparently falls back."""
+    if not use_ai or not GEMINI_SDK_AVAILABLE:
+        return fallback_narrative(stats), False
 
     api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key or not GEMINI_SDK_AVAILABLE:
-        log.info("Gemini API key not configured: generating neural strategic synthesis locally.")
-        synth = ai_strategic_synthesis(stats)
-        _NARRATIVE_CACHE[cache_key] = (synth, True)
-        return synth, True
+    if not api_key:
+        return fallback_narrative(stats), False
 
-    # Cloud Gemini Call with Zero-Leak Tokenization
-    model_name = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
-    timeout_sec = float(os.environ.get("GEMINI_TIMEOUT_SEC", "25.0"))
+    cache_key = hashlib.sha256(json.dumps(stats, sort_keys=True, default=str).encode()).hexdigest()
+    if cache_key in _NARRATIVE_CACHE:
+        return _NARRATIVE_CACHE[cache_key]
+
     cipher = DataPrivacyCipher()
-    encrypted_stats = cipher.encrypt_stats_payload(stats)
+    sanitized_stats = cipher.encrypt_stats(stats)
 
     try:
         client = genai.Client(api_key=api_key)
-        prompt = (
-            f"DATA (JSON - ENCRYPTED SENSORS):\n{json.dumps(encrypted_stats, ensure_ascii=False, indent=2)}\n\n"
-            "Generate the formal E-Rakshak traffic intelligence briefing strictly obeying all compliance rules."
+        model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+        timeout = float(os.environ.get("GEMINI_TIMEOUT_SEC", "20"))
+
+        prompt_payload = (
+            "DATA (JSON):\n"
+            + json.dumps(sanitized_stats, ensure_ascii=False, indent=2)
+            + "\n\nDraft the official traffic engineering intelligence narrative for Surat City Police."
         )
 
         resp = await asyncio.wait_for(
             client.aio.models.generate_content(
-                model=model_name,
-                contents=prompt,
+                model=model,
+                contents=prompt_payload,
                 config=types.GenerateContentConfig(
                     system_instruction=SYSTEM_PROMPT,
                     response_mime_type="application/json",
@@ -407,32 +293,30 @@ async def narrate(stats: dict, use_ai: bool = True) -> Tuple[ReportNarrative, bo
                     temperature=0.2,
                 ),
             ),
-            timeout=timeout_sec,
+            timeout=timeout,
         )
 
-        raw_narrative: Optional[ReportNarrative] = None
-        if hasattr(resp, "parsed") and resp.parsed is not None:
-            raw_narrative = resp.parsed
-        elif hasattr(resp, "text") and resp.text:
-            raw_narrative = ReportNarrative.model_validate_json(resp.text)
+        raw_narr = resp.parsed
+        if raw_narr is None:
+            if hasattr(resp, "text") and resp.text:
+                raw_narr = ReportNarrative.model_validate_json(resp.text)
+            else:
+                raise ValueError("Gemini returned empty response")
 
-        if raw_narrative is None:
-            raise ValueError("Empty or invalid Gemini response")
+        decrypted = cipher.decrypt_narrative(raw_narr)
+        cipher.assert_no_tokens(decrypted)
 
-        unverified = unsupported_numbers(raw_narrative, encrypted_stats)
-        if len(unverified) > 3:
-            log.warning("Gemini generated unsupported numbers %s, falling back to neural synthesis.", unverified)
-            synth = ai_strategic_synthesis(stats)
-            _NARRATIVE_CACHE[cache_key] = (synth, True)
-            return synth, True
+        hallucinations = unsupported_numbers(decrypted, stats)
+        if len(hallucinations) > 4:
+            log.warning("Gemini narrative flagged for ungrounded numbers: %s", hallucinations[:8])
+            res = (fallback_narrative(stats), False)
+        else:
+            res = (decrypted, True)
 
-        decrypted = cipher.decrypt_narrative(raw_narrative)
-        log.info("Successfully synthesized Gemini cloud narrative with zero data leakage.")
-        _NARRATIVE_CACHE[cache_key] = (decrypted, True)
-        return decrypted, True
-
+        _NARRATIVE_CACHE[cache_key] = res
+        return res
     except Exception as exc:
-        log.warning("Gemini cloud synthesis failed (%s), using local neural strategic synthesis.", exc)
-        synth = ai_strategic_synthesis(stats)
-        _NARRATIVE_CACHE[cache_key] = (synth, True)
-        return synth, True
+        log.warning("Gemini narrative failed (%s), using deterministic fallback.", exc)
+        res = (fallback_narrative(stats), False)
+        _NARRATIVE_CACHE[cache_key] = res
+        return res
